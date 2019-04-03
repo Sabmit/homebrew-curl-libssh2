@@ -1,59 +1,37 @@
+require 'formula'
+
 class Curl < Formula
-  desc "Get a file from an HTTP, HTTPS or FTP server"
-  homepage "https://curl.haxx.se/"
-  url "https://curl.haxx.se/download/curl-7.64.1.tar.bz2"
-  sha256 "4cc7c738b35250d0680f29e93e0820c4cb40035f43514ea3ec8d60322d41a45d"
+  homepage 'http://curl.haxx.se/'
+  url 'http://curl.haxx.se/download/curl-7.29.0.tar.gz'
+  sha256 '67dc5b952ac489191b62dbe95b18d336b821649f61404a280186c72e8cd0b9d6'
 
-  bottle do
-    cellar :any
-    sha256 "e5fa214a00a00fa80d76bd05db14e5c176a6be7bedeb86d748f5aa2969344f88" => :mojave
-    sha256 "7349c533e22662c05ef5039696c3e8a7cd8d8a696797040c9c6bf27134662feb" => :high_sierra
-    sha256 "0191dd2c0b129db3fcc10de4e5f61891ebe481a376cec04f8a2a4df5b389e9cb" => :sierra
-  end
+  keg_only :provided_by_osx,
+            "The libcurl provided by Leopard is too old for CouchDB to use."
 
-  head do
-    url "https://github.com/curl/curl.git"
+  option 'with-ssh', 'Build with scp and sftp support'
+  option 'with-libmetalink', 'Build with Metalink support'
+  option 'with-ares', 'Build with C-Ares async DNS support'
+  option 'with-ssl', 'Build with Homebrew OpenSSL instead of the system version'
 
-    depends_on "autoconf" => :build
-    depends_on "automake" => :build
-    depends_on "libtool" => :build
-  end
-
-  keg_only :provided_by_macos
-
-  depends_on "pkg-config" => :build
-  depends_on "libssh2" => :build
+  depends_on 'pkg-config' => :build
+  depends_on 'libssh2' if build.include? 'with-ssh'
+  depends_on 'libmetalink' if build.include? 'with-libmetalink'
+  depends_on 'c-ares' if build.include? 'with-ares'
+  depends_on 'openssl' if build.include? 'with-ssl'
 
   def install
-    system "./buildconf" if build.head?
-
     args = %W[
       --disable-debug
       --disable-dependency-tracking
-      --disable-silent-rules
       --prefix=#{prefix}
-      --with-darwinssl
-      --without-ca-bundle
-      --without-ca-path
     ]
 
-    args << "--with-libssh2"
+    args << "--with-libssh2" if build.include? 'with-ssh'
+    args << "--with-libmetalink" if build.include? 'with-libmetalink'
+    args << "--enable-ares=#{Formula.factory("c-ares").opt_prefix}" if build.include? 'with-ares'
+    args << "--with-ssl=#{Formula.factory("openssl").opt_prefix}" if build.include? 'with-ssl'
 
     system "./configure", *args
-    system "make", "install"
-    system "make", "install", "-C", "scripts"
-    libexec.install "lib/mk-ca-bundle.pl"
-  end
-
-  test do
-    # Fetch the curl tarball and see that the checksum matches.
-    # This requires a network connection, but so does Homebrew in general.
-    filename = (testpath/"test.tar.gz")
-    system "#{bin}/curl", "-L", stable.url, "-o", filename
-    filename.verify_checksum stable.checksum
-
-    system libexec/"mk-ca-bundle.pl", "test.pem"
-    assert_predicate testpath/"test.pem", :exist?
-    assert_predicate testpath/"certdata.txt", :exist?
+    system "make install"
   end
 end
